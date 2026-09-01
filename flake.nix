@@ -46,10 +46,14 @@
           inputs.noctalia.nixosModules.default
           inputs.noctalia-greeter.nixosModules.default
           home-manager.nixosModules.home-manager
-          {
+          ({ pkgs, ... }: {
             home-manager = {
               useGlobalPkgs = true;
               useUserPackages = true;
+              extraSpecialArgs = {
+                superfilePackage =
+                  inputs.superfile.packages.${pkgs.stdenv.hostPlatform.system}.default;
+              };
               users.mattangi = {
                 imports = [
                   inputs.noctalia.homeModules.default
@@ -58,7 +62,7 @@
               };
               backupFileExtension = "backup";
             };
-          }
+          })
         ];
       };
     };

@@ -1,4 +1,4 @@
-{ pkgs, superfile, ... }: with pkgs;
+{ pkgs, ... }: with pkgs;
 [
   # essentials.  cross platform.  linux, nix-darwin
 
@@ -17,7 +17,6 @@
   nixfmt
   nodejs
   python3
-  superfile
   tree-sitter
   uv # linux specific
 

@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, superfilePackage, ... }:
 
 {
   home.packages = [
@@ -14,6 +14,7 @@
     pkgs.yubikey-manager
     pkgs.yubico-piv-tool
     pkgs.feh
+    superfilePackage
     pkgs.bottom
     pkgs.btop
     pkgs.exiftool
