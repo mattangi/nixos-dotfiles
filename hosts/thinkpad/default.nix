@@ -15,6 +15,7 @@
     ../../modules/nixos/audio.nix
     ../../modules/nixos/input.nix
     ../../modules/nixos/fonts.nix
+    ../../modules/nixos/laptop.nix
   ];
 
   # Bootloader.
@@ -34,11 +35,6 @@
 
   # Enable networking
   networking.networkmanager.enable = true;
-
-  # Noctalia requirements
-  hardware.bluetooth.enable = true;
-  services.power-profiles-daemon.enable = true;
-  services.upower.enable = true;
 
   # yubikey support
   services.pcscd.enable = true;
