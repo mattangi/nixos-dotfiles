@@ -1,7 +1,6 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 
@@ -48,8 +47,6 @@
   #    LC_TIME = "ko_KR.UTF-8";
   #  };
 
-  # List packages installed in system profile. To search, run:
-  environment.systemPackages = pkgs.callPackage ../../packages/nixpkgs.nix { };
   # uv can install CLI binaries smoothly
   environment.localBinInPath = true;
 
