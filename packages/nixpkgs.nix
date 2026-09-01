@@ -12,11 +12,6 @@
   zsh-autosuggestions
   zsh-syntax-highlighting
 
-  # AMD specific resource monitoring. Linux specific
-  amdgpu_top
-  nvtopPackages.amd
-  radeontop
-
   # Terminal emulators
   alacritty # cross platform.  linux, nix-darwin
   foot # linux specific
