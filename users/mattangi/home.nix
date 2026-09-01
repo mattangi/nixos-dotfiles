@@ -34,7 +34,7 @@ in
   home.username = "mattangi";
   home.homeDirectory = "/home/mattangi";
   home.stateVersion = "26.11";
-  programs.zsh = import ./config/zsh.nix { inherit config pkgs lib; };
+  programs.zsh = import ../../config/zsh.nix { inherit config pkgs lib; };
   programs.zoxide = {
     enable = true;
     enableZshIntegration = true;

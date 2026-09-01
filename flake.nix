@@ -53,7 +53,7 @@
               users.mattangi = {
                 imports = [
                   inputs.noctalia.homeModules.default
-                  ./home.nix
+                  ./users/mattangi/home.nix
                 ];
               };
               backupFileExtension = "backup";
