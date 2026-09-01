@@ -4,9 +4,6 @@
   git
   oh-my-zsh
   vim
-  wget
-  zip
-  unzip
   zsh
   zsh-powerlevel10k
   zsh-autosuggestions
@@ -20,30 +17,21 @@
 
   # Utilities.  cross platform otherwise specified
   bat
-  bottom
-  btop
-  exiftool
   eza
-  fastfetch
-  fd
   fzf
   fetch # linux specific (pkgs-unstable specific)
   gcc # linux specific
   gnumake # linux specific
   pkg-config # linux specific
-  gdu
   lazygit
   lua5_1
   luarocks
   neovim
-  nitch
   nixd
   nixfmt
   nodejs
   pam_u2f
-  pv
   python3
-  rename
   ripgrep
   superfile
   tree-sitter
