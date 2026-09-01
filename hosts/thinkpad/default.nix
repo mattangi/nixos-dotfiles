@@ -16,6 +16,7 @@
     ../../modules/nixos/input.nix
     ../../modules/nixos/fonts.nix
     ../../modules/nixos/laptop.nix
+    ../../modules/nixos/security.nix
   ];
 
   # Bootloader.
@@ -35,9 +36,6 @@
 
   # Enable networking
   networking.networkmanager.enable = true;
-
-  # yubikey support
-  services.pcscd.enable = true;
 
   # Set your time zone.
   time.timeZone = "Asia/Seoul";
@@ -94,41 +92,6 @@
   services.udisks2.enable = true;
   services.devmon.enable = true;
   services.gvfs.enable = true;
-
-  # polkit configs are linux specific
-  security.polkit.enable = true;
-  security.pam.services = {
-    sudo.u2f = {
-      enable = true;
-      control = "sufficient";
-    };
-
-    polkit-1.u2f = {
-      enable = true;
-      control = "sufficient";
-    };
-
-    login.u2f = {
-      enable = true;
-      control = "sufficient";
-    };
-
-    #    greetd.u2f = {
-    #      enable = true;
-    #      control = "sufficient";
-    #    };
-  };
-
-  systemd.services."polkit-agent-helper@".serviceConfig = {
-    PrivateDevices = false;
-
-    DeviceAllow = [
-      "/dev/urandom r"
-      "char-hidraw rw"
-    ];
-
-    ProtectHome = "read-only";
-  };
 
   # hyprland related configs are linux specific
   programs.hyprland = {
