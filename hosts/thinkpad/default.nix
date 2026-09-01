@@ -19,6 +19,7 @@
     ../../modules/nixos/security.nix
     ../../modules/nixos/desktop.nix
     ../../modules/nixos/gaming.nix
+    ../../users/mattangi
   ];
 
   # Bootloader.
@@ -48,21 +49,6 @@
   #    LC_TELEPHONE = "ko_KR.UTF-8";
   #    LC_TIME = "ko_KR.UTF-8";
   #  };
-
-  # Define a user account. Don't forget to set a password with ‘passwd’.
-  programs.zsh.enable = true;
-  users.users."mattangi" = {
-    isNormalUser = true;
-    shell = pkgs.zsh;
-    description = "mattangi";
-    extraGroups = [
-      "networkmanager"
-      "wheel"
-    ];
-    packages = with pkgs; [
-      tree # per-user pkgs
-    ];
-  };
 
   # List packages installed in system profile. To search, run:
   environment.systemPackages = pkgs.callPackage ../../packages/nixpkgs.nix {
