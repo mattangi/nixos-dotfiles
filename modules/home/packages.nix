@@ -2,6 +2,15 @@
 
 {
   home.packages = [
+    pkgs.alacritty
+    pkgs.foot
+    pkgs.ghostty
+    pkgs.kitty
+    pkgs.bottles
+    pkgs.mupdf
+    pkgs.nwg-look
+    pkgs.wl-clipboard
+    pkgs.adw-gtk3
     pkgs.wget
     pkgs.zip
     pkgs.unzip

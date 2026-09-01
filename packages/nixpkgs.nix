@@ -10,10 +10,6 @@
   zsh-syntax-highlighting
 
   # Terminal emulators
-  alacritty # cross platform.  linux, nix-darwin
-  foot # linux specific
-  ghostty # cross platform.  linux, nix-darwin (ghostty-bin)
-  kitty # default emulator. cross platform.  linux, nix-darwin
 
   # Utilities.  cross platform otherwise specified
   bat
@@ -36,18 +32,13 @@
   superfile
   tree-sitter
   uv # linux specific
-  wl-clipboard # linux specific
   yubico-piv-tool
   yubikey-manager
   zoxide
 
   # guis
-  adw-gtk3 # linux specific
   apple-cursor # linux specific
-  bottles # linux specific
   feh # cross platform.  linux, nix-darwin
-  mupdf # cross platform.  linux, nix-darwin
-  nwg-look # linux specific
 
   #  polkit_gnome
   hyprpolkitagent # linux specific
