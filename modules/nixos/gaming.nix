@@ -3,7 +3,6 @@
 {
   # hardware graphics acceleration
   hardware.graphics = {
-    # hardware graphics acceleration
     enable = true;
     enable32Bit = true; # supports for steam/games
     extraPackages = with pkgs; [ ];
@@ -11,7 +10,6 @@
   };
 
   programs.steam = {
-    # cross platform
     enable = true;
   };
 }

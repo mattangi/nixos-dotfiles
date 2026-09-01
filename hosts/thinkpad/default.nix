@@ -7,7 +7,7 @@
 {
   imports = [
     # Include the results of the hardware scan.
-    ./hardware-configuration.nix # this is not necessary for nix-darwin
+    ./hardware-configuration.nix
     ./machine.nix
     ../../modules/nixos/nix.nix
     ../../modules/nixos/audio.nix
@@ -31,7 +31,6 @@
   # Set your time zone.
   time.timeZone = "Asia/Seoul";
 
-  # all i18n and icitx5 configurations are specific for linux
   # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
 

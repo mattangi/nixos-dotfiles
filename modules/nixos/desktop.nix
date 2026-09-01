@@ -10,18 +10,15 @@
   programs.dconf.enable = true;
 
   programs.noctalia = {
-    # linux specific
     enable = true;
     recommendedServices.enable = true;
     systemd.enable = true;
   };
 
-  # usb configs are linux specific
   services.udisks2.enable = true;
   services.devmon.enable = true;
   services.gvfs.enable = true;
 
-  # hyprland related configs are linux specific
   programs.hyprland = {
     enable = true;
     xwayland.enable = true;
