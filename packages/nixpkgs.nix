@@ -5,10 +5,8 @@
   # Terminal emulators
 
   # Utilities.  cross platform otherwise specified
-  fetch # linux specific (pkgs-unstable specific)
 
   # guis
-  apple-cursor # linux specific
 
   #  polkit_gnome
   hyprpolkitagent # linux specific

@@ -1,6 +1,8 @@
 { pkgs, ... }:
 
 {
+  environment.systemPackages = [ pkgs.apple-cursor ];
+
   # Enable dconf (required for GTK settings to persist)
   programs.dconf.enable = true;
 

@@ -14,6 +14,7 @@
     pkgs.yubikey-manager
     pkgs.yubico-piv-tool
     pkgs.feh
+    pkgs.fetch
     superfilePackage
     pkgs.bottom
     pkgs.btop
