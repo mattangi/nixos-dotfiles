@@ -31,6 +31,10 @@ let
 
 in
 {
+  imports = [
+    ../../modules/home/packages.nix
+  ];
+
   home.username = "mattangi";
   home.homeDirectory = "/home/mattangi";
   home.stateVersion = "26.11";

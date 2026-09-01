@@ -11,8 +11,5 @@
       "networkmanager"
       "wheel"
     ];
-    packages = with pkgs; [
-      tree # per-user pkgs
-    ];
   };
 }
