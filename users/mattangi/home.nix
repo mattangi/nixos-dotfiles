@@ -33,6 +33,7 @@ in
 {
   imports = [
     ../../modules/home/packages.nix
+    ../../modules/home/development.nix
   ];
 
   home.username = "mattangi";
