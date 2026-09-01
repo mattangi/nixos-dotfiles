@@ -18,20 +18,12 @@
     ../../modules/nixos/laptop.nix
     ../../modules/nixos/security.nix
     ../../modules/nixos/desktop.nix
+    ../../modules/nixos/gaming.nix
   ];
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
-
-  # hardware graphics acceleration
-  hardware.graphics = {
-    # hardware graphics acceleration
-    enable = true;
-    enable32Bit = true; # supports for steam/games
-    extraPackages = with pkgs; [ ];
-    extraPackages32 = with pkgs; [ ];
-  };
 
   networking.hostName = "thinkpad"; # Define your hostname.
 
@@ -78,11 +70,6 @@
   };
   # uv can install CLI binaries smoothly
   environment.localBinInPath = true;
-
-  programs.steam = {
-    # cross platform
-    enable = true;
-  };
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
