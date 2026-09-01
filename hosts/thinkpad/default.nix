@@ -11,6 +11,7 @@
     # Include the results of the hardware scan.
     ./hardware-configuration.nix # this is not necessary for nix-darwin
     ./machine.nix
+    ../../modules/nixos/nix.nix
   ];
 
   # Bootloader.
@@ -92,9 +93,6 @@
       tree # per-user pkgs
     ];
   };
-
-  # Allow unfree packages
-  nixpkgs.config.allowUnfree = true;
 
   # Enable dconf (required for GTK settings to persist)
   programs.dconf.enable = true;
@@ -253,10 +251,6 @@
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
   system.stateVersion = "26.11"; # Did you read the comment?
 
 }
