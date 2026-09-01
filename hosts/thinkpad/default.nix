@@ -12,6 +12,7 @@
     ./hardware-configuration.nix # this is not necessary for nix-darwin
     ./machine.nix
     ../../modules/nixos/nix.nix
+    ../../modules/nixos/audio.nix
   ];
 
   # Bootloader.
@@ -149,17 +150,6 @@
     ];
 
     ProtectHome = "read-only";
-  };
-
-  # Enable Pipewire for screencasting and audio server. Linux specific
-  security.rtkit.enable = true;
-  services.pulseaudio.enable = false;
-  services.pipewire = {
-    enable = true;
-    pulse.enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    jack.enable = true;
   };
 
   # hyprland related configs are linux specific
