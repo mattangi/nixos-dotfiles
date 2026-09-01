@@ -9,6 +9,5 @@
   # guis
 
   #  polkit_gnome
-  hyprpolkitagent # linux specific
   wineWow64Packages.stable # linux specific
 ]
