@@ -42,7 +42,6 @@
         system = "x86_64-linux";
         specialArgs = { inherit inputs; };
         modules = [
-          inputs.nixos-hardware.nixosModules.lenovo-thinkpad-t14-amd-gen4 # hardware declarations maintained by the nixos community
           ./hosts/thinkpad
           inputs.noctalia.nixosModules.default
           inputs.noctalia-greeter.nixosModules.default

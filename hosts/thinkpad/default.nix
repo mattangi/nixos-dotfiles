@@ -10,6 +10,7 @@
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix # this is not necessary for nix-darwin
+    ./machine.nix
   ];
 
   # Bootloader.
