@@ -1,7 +1,6 @@
 { pkgs, superfile, ... }: with pkgs;
 [
   # essentials.  cross platform.  linux, nix-darwin
-  vim
 
   # Terminal emulators
 

@@ -13,9 +13,6 @@
     pkgs.adw-gtk3
     pkgs.yubikey-manager
     pkgs.yubico-piv-tool
-    pkgs.wget
-    pkgs.zip
-    pkgs.unzip
     pkgs.bottom
     pkgs.btop
     pkgs.exiftool

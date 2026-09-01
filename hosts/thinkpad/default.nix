@@ -20,6 +20,7 @@
     ../../modules/nixos/desktop.nix
     ../../modules/nixos/gaming.nix
     ../../modules/nixos/networking.nix
+    ../../modules/nixos/base-packages.nix
     ../../users/mattangi
   ];
 
