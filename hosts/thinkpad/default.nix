@@ -99,7 +99,7 @@
   programs.dconf.enable = true;
 
   # List packages installed in system profile. To search, run:
-  environment.systemPackages = pkgs.callPackage ./packages/nixpkgs.nix {
+  environment.systemPackages = pkgs.callPackage ../../packages/nixpkgs.nix {
     superfile = inputs.superfile.packages.${pkgs.stdenv.hostPlatform.system}.default;
   };
   # uv can install CLI binaries smoothly
