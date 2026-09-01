@@ -13,6 +13,7 @@
     ./machine.nix
     ../../modules/nixos/nix.nix
     ../../modules/nixos/audio.nix
+    ../../modules/nixos/input.nix
   ];
 
   # Bootloader.
@@ -59,26 +60,6 @@
   #    LC_TELEPHONE = "ko_KR.UTF-8";
   #    LC_TIME = "ko_KR.UTF-8";
   #  };
-
-  # Configure keymap in X11
-  services.xserver.xkb = {
-    layout = "kr";
-    variant = "kr104";
-  };
-
-  i18n.inputMethod = {
-    type = "fcitx5";
-    enable = true;
-
-    fcitx5 = {
-      addons = with pkgs; [
-        fcitx5-hangul
-        fcitx5-gtk
-        fcitx5-nord
-      ];
-      waylandFrontend = true;
-    };
-  };
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   programs.zsh.enable = true;
@@ -163,11 +144,6 @@
     WLR_NO_HARDWARE_CURSORS = "1";
     NIXOS_OZONE_WL = "1";
     NIXOS_OZONE_HWP = "1";
-    XMODIFIERS = "@im=fcitx";
-    QT_IM_MODULE = "fcitx";
-    GTK_IM_MODULE = "fcitx";
-    SDL_IM_MODULE = "fcitx";
-    GLFW_IM_MODULE = "fcitx";
   };
 
   environment.variables = {
