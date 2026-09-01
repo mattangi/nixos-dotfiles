@@ -19,6 +19,7 @@
     ../../modules/nixos/security.nix
     ../../modules/nixos/desktop.nix
     ../../modules/nixos/gaming.nix
+    ../../modules/nixos/networking.nix
     ../../users/mattangi
   ];
 
@@ -27,9 +28,6 @@
   boot.loader.efi.canTouchEfiVariables = true;
 
   networking.hostName = "thinkpad"; # Define your hostname.
-
-  # Enable networking
-  networking.networkmanager.enable = true;
 
   # Set your time zone.
   time.timeZone = "Asia/Seoul";
