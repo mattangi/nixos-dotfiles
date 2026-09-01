@@ -32,8 +32,6 @@
   superfile
   tree-sitter
   uv # linux specific
-  yubico-piv-tool
-  yubikey-manager
   zoxide
 
   # guis
