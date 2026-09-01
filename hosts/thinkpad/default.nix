@@ -14,6 +14,7 @@
     ../../modules/nixos/nix.nix
     ../../modules/nixos/audio.nix
     ../../modules/nixos/input.nix
+    ../../modules/nixos/fonts.nix
   ];
 
   # Bootloader.
@@ -164,13 +165,6 @@
       };
     };
   };
-
-  fonts.packages = with pkgs; [
-    nerd-fonts.jetbrains-mono # cross platform
-    nerd-fonts.meslo-lg # cross platform
-    nanum # linux specific
-    noto-fonts-cjk-sans # linux specific
-  ];
 
   # gnome related configs are linux specific
   systemd.user.services.polkit-gnome-authentication-agent-1 = {
