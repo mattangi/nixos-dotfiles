@@ -34,9 +34,6 @@
 
     
     initContent = lib.mkBefore ''
-        # Define variables for directories
-        export PATH=$HOME/.local/share/bin:$PATH
-
         # Remove history data we don't want to see
         export HISTIGNORE="pwd:ls:cd"
 
