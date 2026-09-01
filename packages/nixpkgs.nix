@@ -23,7 +23,6 @@
 
   # guis
   apple-cursor # linux specific
-  feh # cross platform.  linux, nix-darwin
 
   #  polkit_gnome
   hyprpolkitagent # linux specific

@@ -13,6 +13,7 @@
     pkgs.adw-gtk3
     pkgs.yubikey-manager
     pkgs.yubico-piv-tool
+    pkgs.feh
     pkgs.bottom
     pkgs.btop
     pkgs.exiftool
