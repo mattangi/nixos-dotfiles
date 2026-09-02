@@ -78,35 +78,6 @@ in
     };
   };
 
-  home.activation.generateU2FKeys = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    U2F_DIR="${config.home.homeDirectory}/.config/Yubico"
-    U2F_FILE="$U2F_DIR/u2f_keys"
-
-    if [ ! -s "$U2F_FILE" ]; then
-      echo
-      echo "No YubiKey U2F mapping found."
-      echo "Please insert your YubiKey and touch it when it flashes."
-      echo
-
-      ${pkgs.coreutils}/bin/mkdir -p "$U2F_DIR"
-      ${pkgs.coreutils}/bin/chmod 700 "$U2F_DIR"
-
-      TMP_FILE="$(${pkgs.coreutils}/bin/mktemp)"
-
-      if ${pkgs.pam_u2f}/bin/pamu2fcfg > "$TMP_FILE"; then
-        ${pkgs.coreutils}/bin/chmod 600 "$TMP_FILE"
-        ${pkgs.coreutils}/bin/mv "$TMP_FILE" "$U2F_FILE"
-
-        echo "YubiKey U2F mapping created:"
-        echo "  $U2F_FILE"
-      else
-        ${pkgs.coreutils}/bin/rm -f "$TMP_FILE"
-        echo "Failed to register YubiKey."
-        exit 1
-      fi
-    fi
-  '';
-
   programs.codex = {
     enable = true;
   };
