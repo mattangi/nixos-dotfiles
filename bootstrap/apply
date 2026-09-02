@@ -68,6 +68,16 @@ read_optional_file() {
   fi
 }
 
+require_directory_write_access() {
+  local path=$1
+  local operation=$2
+
+  [[ -d $path ]] ||
+    die "cannot $operation at $path: path is not a directory; bootstrap stopped before persistent writes"
+  [[ -w $path && -x $path ]] ||
+    die "cannot $operation at $path: directory is not writable and searchable; bootstrap stopped before persistent writes"
+}
+
 host=''
 user=''
 name=''
@@ -304,6 +314,25 @@ elif [[ -e $walls_source ]]; then
     die "config/walls exists but is not a directory: $walls_source"
 else
   walls_action='create empty directory'
+fi
+
+hosts_root="$repository_root/hosts"
+require_directory_write_access "$hosts_root" 'create a host and registry temporary file'
+[[ -w $registry ]] ||
+  die "cannot update registry at $registry: file is not writable; bootstrap stopped before persistent writes"
+
+if [[ $user_mode == 'new' ]]; then
+  require_directory_write_access "$repository_root/users" 'create a user directory'
+fi
+
+if [[ -d $metadata_root ]]; then
+  require_directory_write_access "$metadata_root" 'create bootstrap staging and metadata'
+else
+  require_directory_write_access "$repository_root" 'create .bootstrap'
+fi
+
+if [[ $walls_action == 'create empty directory' ]]; then
+  require_directory_write_access "$repository_root/config" 'create config/walls'
 fi
 
 printf '\nBootstrap plan\n'
