@@ -1,0 +1,510 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: apply [OPTIONS]
+
+Adopt the current x86_64 NixOS machine as a new host in this repository.
+
+Options:
+  --host HOST    Hostname to register (discovered when omitted)
+  --user USER    Existing or new local user (current user when omitted)
+  --name NAME    Full name for a new user
+  --email EMAIL  Git email for a new user
+  --yes          Skip the final confirmation prompt
+  -h, --help     Show this help
+
+This command prepares and validates repository state. It never activates the
+NixOS or Home Manager configuration and never stages or commits files.
+EOF
+}
+
+die() {
+  printf 'bootstrap/apply: %s\n' "$*" >&2
+  exit 1
+}
+
+validate_single_line() {
+  local label=$1
+  local value=$2
+
+  [[ -n $value ]] || die "$label must not be empty"
+  [[ $value != *$'\n'* && $value != *$'\r'* ]] ||
+    die "$label must be a single-line value"
+  [[ $value != *'%HOST%'* &&
+    $value != *'%USER%'* &&
+    $value != *'%NAME%'* &&
+    $value != *'%EMAIL%'* ]] ||
+    die "$label must not contain a supported placeholder token"
+}
+
+prompt_with_default() {
+  local label=$1
+  local default_value=$2
+  local variable_name=$3
+  local answer=''
+
+  if [[ -n $default_value ]]; then
+    printf '%s [%s]: ' "$label" "$default_value"
+  else
+    printf '%s: ' "$label"
+  fi
+  IFS= read -r answer || die 'input ended before bootstrap inputs were complete'
+  if [[ -z $answer ]]; then
+    answer=$default_value
+  fi
+  printf -v "$variable_name" '%s' "$answer"
+}
+
+read_optional_file() {
+  local path=$1
+
+  if [[ -r $path ]]; then
+    tr -d '\r\n' < "$path"
+  else
+    printf 'unavailable'
+  fi
+}
+
+host=''
+user=''
+name=''
+email=''
+name_supplied=false
+email_supplied=false
+assume_yes=false
+
+while (( $# > 0 )); do
+  case $1 in
+    --host | --user | --name | --email)
+      (( $# >= 2 )) || die "missing value for $1"
+      case $1 in
+        --host) host=$2 ;;
+        --user) user=$2 ;;
+        --name)
+          name=$2
+          name_supplied=true
+          ;;
+        --email)
+          email=$2
+          email_supplied=true
+          ;;
+      esac
+      shift 2
+      ;;
+    --yes)
+      assume_yes=true
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+(( EUID != 0 )) || die 'do not run bootstrap/apply as root; run it as the target normal user'
+
+script_directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+repository_root=$(cd -- "$script_directory/.." && pwd -P)
+
+required_paths=(
+  flake.nix
+  hosts/registry.nix
+  templates/host/default.nix.tmpl
+  templates/host/machine.nix.tmpl
+  templates/user/default.nix.tmpl
+  templates/user/home.nix.tmpl
+  bootstrap/render-template
+  bootstrap/register-host
+)
+for relative_path in "${required_paths[@]}"; do
+  [[ -f $repository_root/$relative_path ]] ||
+    die "repository layout is incomplete; missing $relative_path"
+done
+[[ -x $repository_root/bootstrap/render-template ]] ||
+  die 'bootstrap/render-template is not executable'
+[[ -x $repository_root/bootstrap/register-host ]] ||
+  die 'bootstrap/register-host is not executable'
+
+required_commands=(
+  bash
+  cmp
+  cp
+  grep
+  hostnamectl
+  id
+  mkdir
+  mktemp
+  mv
+  nix
+  nix-instantiate
+  nixos-generate-config
+  rm
+  rmdir
+  tr
+  uname
+)
+for command_name in "${required_commands[@]}"; do
+  command -v "$command_name" >/dev/null 2>&1 ||
+    die "required command is unavailable: $command_name"
+done
+
+interactive=false
+if [[ -t 0 && -t 1 ]]; then
+  interactive=true
+fi
+
+detected_host=''
+if detected_host=$(hostnamectl --static 2>/dev/null); then
+  detected_host=${detected_host//$'\n'/}
+  detected_host=${detected_host//$'\r'/}
+fi
+if [[ -z $host ]]; then
+  if $interactive; then
+    prompt_with_default 'Host' "$detected_host" host
+  else
+    host=$detected_host
+  fi
+fi
+[[ -n $host ]] || die 'host could not be discovered; provide --host'
+[[ $host =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
+  die 'host must match [a-z0-9][a-z0-9-]*'
+
+executing_user=$(id -un)
+detected_user=$executing_user
+if [[ -z $user ]]; then
+  if $interactive; then
+    prompt_with_default 'User' "$detected_user" user
+  else
+    user=$detected_user
+  fi
+fi
+[[ $user =~ ^[a-z_][a-z0-9_-]*$ ]] ||
+  die 'user must be a conservative Linux username'
+[[ $user == "$executing_user" ]] ||
+  die "selected user $user differs from executing user $executing_user"
+
+detected_architecture=$(uname -m)
+[[ $detected_architecture == 'x86_64' ]] ||
+  die "unsupported architecture: $detected_architecture (only x86_64 is supported)"
+system='x86_64-linux'
+
+expected_home=$(cd -- "/home/$user" 2>/dev/null && pwd -P) ||
+  die "expected home directory does not exist: /home/$user"
+expected_repository="$expected_home/nixos-dotfiles"
+if [[ -d $expected_repository ]]; then
+  expected_repository=$(cd -- "$expected_repository" && pwd -P)
+fi
+
+# Test-only: isolated fixture tests cannot live at /home/<user>/nixos-dotfiles.
+# This bypass affects only the repository-location invariant.
+if [[ ${NIXOS_DOTFILES_BOOTSTRAP_TEST_BYPASS_REPOSITORY_LOCATION:-0} != 1 ]]; then
+  [[ $repository_root == "$expected_repository" ]] ||
+    die "repository must be located at $expected_repository; Home Manager out-of-store paths would otherwise target the wrong repository"
+fi
+
+registry="$repository_root/hosts/registry.nix"
+nix-instantiate --parse "$registry" >/dev/null ||
+  die 'hosts/registry.nix is not valid Nix syntax'
+if grep -Fqx "  $host = {" "$registry"; then
+  die "host is already registered: $host"
+fi
+
+# Exercise the registry writer against an isolated copy during preflight. This
+# verifies the constrained registry layout and requested entry without touching
+# the real registry.
+registry_preflight_root=$(mktemp -d)
+mkdir -- "$registry_preflight_root/bootstrap" "$registry_preflight_root/hosts"
+cp -- "$repository_root/bootstrap/register-host" "$registry_preflight_root/bootstrap/register-host"
+cp -- "$registry" "$registry_preflight_root/hosts/registry.nix"
+if ! "$registry_preflight_root/bootstrap/register-host" \
+  --host "$host" \
+  --user "$user" \
+  --system "$system" >/dev/null 2>&1; then
+  rm -rf -- "$registry_preflight_root"
+  die 'registry preflight failed; the registry may be malformed or conflicting'
+fi
+if cmp -s -- "$registry" "$registry_preflight_root/hosts/registry.nix"; then
+  rm -rf -- "$registry_preflight_root"
+  die "host is already registered: $host"
+fi
+rm -rf -- "$registry_preflight_root"
+
+host_target="$repository_root/hosts/$host"
+[[ ! -e $host_target && ! -L $host_target ]] ||
+  die "host path already exists: $host_target"
+
+user_target="$repository_root/users/$user"
+user_mode='new'
+if [[ -e $user_target || -L $user_target ]]; then
+  [[ -d $user_target && ! -L $user_target ]] ||
+    die "user path is not a normal directory: $user_target"
+  if [[ -f $user_target/default.nix && -f $user_target/home.nix ]]; then
+    user_mode='existing'
+  else
+    die "user directory is partial; both default.nix and home.nix are required: $user_target"
+  fi
+fi
+
+if [[ $user_mode == 'existing' ]]; then
+  if $name_supplied || $email_supplied; then
+    die '--name and --email cannot be used when reusing an existing user configuration'
+  fi
+else
+  suggested_name=''
+  suggested_email=''
+  if command -v git >/dev/null 2>&1; then
+    suggested_name=$(git config --get user.name 2>/dev/null || true)
+    suggested_email=$(git config --get user.email 2>/dev/null || true)
+  fi
+
+  if [[ -z $name ]]; then
+    if $interactive; then
+      prompt_with_default 'Name' "$suggested_name" name
+    else
+      die '--name is required when creating a user non-interactively'
+    fi
+  fi
+  if [[ -z $email ]]; then
+    if $interactive; then
+      prompt_with_default 'Email' "$suggested_email" email
+    else
+      die '--email is required when creating a user non-interactively'
+    fi
+  fi
+
+  validate_single_line name "$name"
+  validate_single_line email "$email"
+  [[ $email =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] ||
+    die 'email must have a basic user@example.com shape'
+fi
+
+metadata_root="$repository_root/.bootstrap"
+metadata_target="$metadata_root/$host"
+if [[ -L $metadata_root ]]; then
+  die ".bootstrap must be a normal directory, not a symlink: $metadata_root"
+elif [[ -e $metadata_root && ! -d $metadata_root ]]; then
+  die ".bootstrap exists but is not a directory: $metadata_root"
+fi
+[[ ! -e $metadata_target && ! -L $metadata_target ]] ||
+  die "bootstrap metadata already exists: $metadata_target"
+
+walls_source="$repository_root/config/walls"
+walls_action='reuse existing directory'
+if [[ -L $walls_source ]]; then
+  die "config/walls must be a normal directory, not a symlink: $walls_source"
+elif [[ -e $walls_source ]]; then
+  [[ -d $walls_source ]] ||
+    die "config/walls exists but is not a directory: $walls_source"
+else
+  walls_action='create empty directory'
+fi
+
+printf '\nBootstrap plan\n'
+printf '  Host:        %s\n' "$host"
+printf '  User:        %s\n' "$user"
+printf '  System:      %s\n' "$system"
+printf '  Repository:  %s\n' "$repository_root"
+printf '  User config: %s\n' "$user_mode"
+printf '  Host dir:    hosts/%s\n' "$host"
+printf '  Metadata:    .bootstrap/%s\n' "$host"
+printf '  Wallpapers:  %s\n' "$walls_action"
+printf '  Timezone:    Asia/Seoul (template default)\n'
+printf '  Locale:      en_US.UTF-8 (template default)\n'
+if [[ $user_mode == 'new' ]]; then
+  printf '  Name:        %s\n' "$name"
+  printf '  Email:       %s\n' "$email"
+fi
+printf '\nNo system activation will be performed.\n'
+
+if ! $assume_yes; then
+  $interactive || die 'confirmation requires an interactive terminal; use --yes to continue non-interactively'
+  printf 'Continue? [y/N]: '
+  confirmation=''
+  IFS= read -r confirmation || die 'input ended before confirmation'
+  case $confirmation in
+    y | Y | yes | YES | Yes) ;;
+    *)
+      printf 'Bootstrap cancelled; no persistent changes were made.\n'
+      exit 0
+      ;;
+  esac
+fi
+
+mkdir -p -- "$metadata_root"
+staging_directory=$(mktemp -d "$metadata_root/.tmp-${host}.XXXXXX")
+cleanup() {
+  if [[ -n ${staging_directory:-} && -d $staging_directory ]]; then
+    rm -rf -- "$staging_directory"
+  fi
+}
+trap cleanup EXIT
+
+staged_host="$staging_directory/host"
+staged_user="$staging_directory/user"
+staged_metadata="$staging_directory/metadata"
+mkdir -- "$staged_host" "$staged_metadata"
+
+# Host templates contain no %NAME% or %EMAIL%. The renderer still requires all
+# four arguments, so harmless values are supplied only for its fixed interface.
+render_name='unused host-template value'
+render_email='unused@example.invalid'
+"$repository_root/bootstrap/render-template" \
+  --template "$repository_root/templates/host/default.nix.tmpl" \
+  --output "$staged_host/default.nix" \
+  --host "$host" \
+  --user "$user" \
+  --name "$render_name" \
+  --email "$render_email"
+"$repository_root/bootstrap/render-template" \
+  --template "$repository_root/templates/host/machine.nix.tmpl" \
+  --output "$staged_host/machine.nix" \
+  --host "$host" \
+  --user "$user" \
+  --name "$render_name" \
+  --email "$render_email"
+
+if [[ $user_mode == 'new' ]]; then
+  mkdir -- "$staged_user"
+  "$repository_root/bootstrap/render-template" \
+    --template "$repository_root/templates/user/default.nix.tmpl" \
+    --output "$staged_user/default.nix" \
+    --host "$host" \
+    --user "$user" \
+    --name "$name" \
+    --email "$email"
+  "$repository_root/bootstrap/render-template" \
+    --template "$repository_root/templates/user/home.nix.tmpl" \
+    --output "$staged_user/home.nix" \
+    --host "$host" \
+    --user "$user" \
+    --name "$name" \
+    --email "$email"
+fi
+
+hardware_configuration="$staged_host/hardware-configuration.nix"
+if ! nixos-generate-config --show-hardware-config > "$hardware_configuration"; then
+  die 'nixos-generate-config --show-hardware-config failed'
+fi
+[[ -s $hardware_configuration ]] || die 'generated hardware configuration is empty'
+
+for nix_file in "$staged_host/default.nix" "$staged_host/machine.nix" "$hardware_configuration"; do
+  nix-instantiate --parse "$nix_file" >/dev/null ||
+    die "generated file is not valid Nix syntax: $nix_file"
+done
+if [[ $user_mode == 'new' ]]; then
+  for nix_file in "$staged_user/default.nix" "$staged_user/home.nix"; do
+    nix-instantiate --parse "$nix_file" >/dev/null ||
+      die "generated file is not valid Nix syntax: $nix_file"
+  done
+fi
+
+placeholder_paths=("$staged_host")
+if [[ $user_mode == 'new' ]]; then
+  placeholder_paths+=("$staged_user")
+fi
+if grep -R -E '%(HOST|USER|NAME|EMAIL)%' "${placeholder_paths[@]}" >/dev/null 2>&1; then
+  die 'a generated file still contains a supported placeholder token'
+fi
+
+{
+  printf 'Bootstrap inputs\n'
+  printf 'Host: %s\n' "$host"
+  printf 'User: %s\n' "$user"
+  printf 'System: %s\n' "$system"
+  printf 'Repository: %s\n' "$repository_root"
+  printf 'User mode: %s\n' "$user_mode"
+  if [[ $user_mode == 'new' ]]; then
+    printf 'Name: %s\n' "$name"
+    printf 'Email: %s\n' "$email"
+  fi
+  printf 'Project timezone default: Asia/Seoul\n'
+  printf 'Project locale default: en_US.UTF-8\n'
+} > "$staged_metadata/inputs.txt"
+
+{
+  printf 'Bootstrap hardware report\n'
+  printf 'Architecture: %s\n' "$detected_architecture"
+  printf 'Nix system: %s\n' "$system"
+  printf 'Current static hostname: %s\n' "${detected_host:-unavailable}"
+  printf 'DMI system vendor: %s\n' "$(read_optional_file /sys/class/dmi/id/sys_vendor)"
+  printf 'DMI product name: %s\n' "$(read_optional_file /sys/class/dmi/id/product_name)"
+  printf 'DMI product version: %s\n' "$(read_optional_file /sys/class/dmi/id/product_version)"
+  printf '\nCPU summary\n'
+  if command -v lscpu >/dev/null 2>&1; then
+    if ! lscpu; then
+      printf 'lscpu failed\n'
+    fi
+  else
+    printf 'lscpu unavailable\n'
+  fi
+  printf '\nPCI devices\n'
+  if command -v lspci >/dev/null 2>&1; then
+    if ! lspci -nn; then
+      printf 'lspci failed\n'
+    fi
+  else
+    printf 'lspci unavailable\n'
+  fi
+} > "$staged_metadata/hardware-report.txt"
+cp -- "$hardware_configuration" "$staged_metadata/hardware-configuration.nix.tmp"
+
+# Recheck all no-overwrite preconditions immediately before publication.
+[[ ! -e $host_target && ! -L $host_target ]] || die "host path appeared during bootstrap: $host_target"
+[[ ! -e $metadata_target && ! -L $metadata_target ]] || die "metadata path appeared during bootstrap: $metadata_target"
+if [[ $user_mode == 'new' ]]; then
+  [[ ! -e $user_target && ! -L $user_target ]] || die "user path appeared during bootstrap: $user_target"
+fi
+if grep -Fqx "  $host = {" "$registry"; then
+  die "host registry entry appeared during bootstrap: $host"
+fi
+
+if [[ $user_mode == 'new' ]]; then
+  mv -T -- "$staged_user" "$user_target"
+fi
+mv -T -- "$staged_host" "$host_target"
+if [[ $walls_action == 'create empty directory' ]]; then
+  mkdir -- "$walls_source"
+fi
+mv -T -- "$staged_metadata" "$metadata_target"
+
+"$repository_root/bootstrap/register-host" \
+  --host "$host" \
+  --user "$user" \
+  --system "$system"
+
+cd -- "$repository_root"
+if ! nix \
+  --option experimental-features 'nix-command flakes' \
+  flake check 'path:.' \
+  --no-build \
+  --no-write-lock-file; then
+  die 'flake validation failed; generated files were left unstaged for inspection'
+fi
+
+if ! derivation_path=$(nix \
+  --option experimental-features 'nix-command flakes' \
+  eval "path:.#nixosConfigurations.${host}.config.system.build.toplevel.drvPath" \
+  --raw \
+  --no-write-lock-file); then
+  die 'host derivation evaluation failed; generated files were left unstaged for inspection'
+fi
+
+rmdir -- "$staging_directory"
+staging_directory=''
+trap - EXIT
+
+printf '\nBootstrap preparation complete.\n'
+printf '  Host configuration: hosts/%s\n' "$host"
+printf '  User configuration: %s (%s)\n' "$user_target" "$user_mode"
+printf '  Metadata:           .bootstrap/%s\n' "$host"
+printf '  Derivation:         %s\n' "$derivation_path"
+printf '\nInspect hosts/%s/machine.nix and the local hardware report before activation.\n' "$host"
+printf 'All repository changes remain unstaged.\n'
+printf 'The system has NOT been activated.\n'
