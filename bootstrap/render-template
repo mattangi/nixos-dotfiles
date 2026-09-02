@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+shopt -u patsub_replacement
+
+usage() {
+  cat <<'EOF'
+Usage: render-template \
+  --template FILE \
+  --output FILE \
+  --host HOST \
+  --user USER \
+  --name NAME \
+  --email EMAIL
+
+The output's parent directory must already exist. Existing output files are
+never overwritten.
+EOF
+}
+
+die() {
+  printf 'render-template: %s\n' "$*" >&2
+  exit 1
+}
+
+validate_single_line() {
+  local label=$1
+  local value=$2
+
+  [[ $value != *$'\n'* && $value != *$'\r'* ]] ||
+    die "$label must be a single-line value"
+  [[ $value != *'%HOST%'* &&
+    $value != *'%USER%'* &&
+    $value != *'%NAME%'* &&
+    $value != *'%EMAIL%'* ]] ||
+    die "$label must not contain a supported placeholder token"
+}
+
+escape_nix_string() {
+  local value=$1
+
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//\$\{/\\\$\{}
+  printf '%s' "$value"
+}
+
+template=''
+output=''
+host=''
+user=''
+name=''
+email=''
+
+while (( $# > 0 )); do
+  case $1 in
+    --template | --output | --host | --user | --name | --email)
+      (( $# >= 2 )) || die "missing value for $1"
+      case $1 in
+        --template) template=$2 ;;
+        --output) output=$2 ;;
+        --host) host=$2 ;;
+        --user) user=$2 ;;
+        --name) name=$2 ;;
+        --email) email=$2 ;;
+      esac
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ -n $template ]] || die '--template is required'
+[[ -n $output ]] || die '--output is required'
+[[ -n $host ]] || die '--host is required'
+[[ -n $user ]] || die '--user is required'
+[[ -n $name ]] || die '--name is required'
+[[ -n $email ]] || die '--email is required'
+
+[[ $host =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
+  die 'host must match [a-z0-9][a-z0-9-]*'
+[[ $user =~ ^[a-z_][a-z0-9_-]*$ ]] ||
+  die 'user must be a conservative Linux username'
+
+validate_single_line host "$host"
+validate_single_line user "$user"
+validate_single_line name "$name"
+validate_single_line email "$email"
+
+[[ -f $template ]] || die "template is not a regular file: $template"
+[[ ! -e $output && ! -L $output ]] || die "output already exists: $output"
+
+output_directory=$(dirname -- "$output")
+output_name=$(basename -- "$output")
+[[ -d $output_directory ]] ||
+  die "output parent directory does not exist: $output_directory"
+
+escaped_host=$(escape_nix_string "$host")
+escaped_user=$(escape_nix_string "$user")
+escaped_name=$(escape_nix_string "$name")
+escaped_email=$(escape_nix_string "$email")
+
+# The sentinel preserves trailing newlines through command substitution.
+rendered=$(cat -- "$template"; printf '\001')
+rendered=${rendered%$'\001'}
+rendered=${rendered//%HOST%/$escaped_host}
+rendered=${rendered//%USER%/$escaped_user}
+rendered=${rendered//%NAME%/$escaped_name}
+rendered=${rendered//%EMAIL%/$escaped_email}
+
+case $rendered in
+  *'%HOST%'* | *'%USER%'* | *'%NAME%'* | *'%EMAIL%'*)
+    die 'rendered output still contains a supported placeholder token'
+    ;;
+esac
+
+temporary_file=''
+cleanup() {
+  if [[ -n $temporary_file ]]; then
+    rm -f -- "$temporary_file"
+  fi
+}
+trap cleanup EXIT
+
+temporary_file=$(mktemp "$output_directory/.${output_name}.tmp.XXXXXX")
+printf '%s' "$rendered" > "$temporary_file"
+chmod 0644 "$temporary_file"
+
+# A hard link supplies an atomic, no-clobber publication in the same directory.
+if ! ln -- "$temporary_file" "$output"; then
+  die "could not create output without overwriting: $output"
+fi
+
+rm -f -- "$temporary_file"
+temporary_file=''

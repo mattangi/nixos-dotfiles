@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: register-host --host HOST --user USER --system x86_64-linux
+
+Adds an explicit host entry to hosts/registry.nix. An identical existing entry
+is left unchanged; a conflicting entry is rejected.
+EOF
+}
+
+die() {
+  printf 'register-host: %s\n' "$*" >&2
+  exit 1
+}
+
+declare -A registry_users=()
+declare -A registry_systems=()
+
+validate_registry_shape() {
+  local registry_file=$1
+  local state='opening'
+  local current_host=''
+  local current_user=''
+  local line=''
+  local line_number=0
+
+  registry_users=()
+  registry_systems=()
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    (( line_number += 1 ))
+    case $state in
+      opening)
+        [[ $line == '{' ]] ||
+          die "malformed registry at line $line_number: expected opening {"
+        state='entry'
+        ;;
+      entry)
+        if [[ -z $line ]]; then
+          continue
+        elif [[ $line == '}' ]]; then
+          state='done'
+        elif [[ $line =~ ^[[:space:]][[:space:]]([a-z0-9][a-z0-9-]*)[[:space:]]=[[:space:]]\{$ ]]; then
+          current_host=${BASH_REMATCH[1]}
+          [[ ! -v 'registry_users[$current_host]' ]] ||
+            die "malformed registry: duplicate host $current_host"
+          state='user'
+        else
+          die "malformed registry at line $line_number: expected a host entry or final }"
+        fi
+        ;;
+      user)
+        if [[ $line =~ ^[[:space:]]{4}user[[:space:]]=[[:space:]]\"([a-z_][a-z0-9_-]*)\"\;$ ]]; then
+          current_user=${BASH_REMATCH[1]}
+          state='system'
+        else
+          die "malformed registry at line $line_number: expected a user field"
+        fi
+        ;;
+      system)
+        if [[ $line =~ ^[[:space:]]{4}system[[:space:]]=[[:space:]]\"(x86_64-linux)\"\;$ ]]; then
+          registry_users["$current_host"]=$current_user
+          registry_systems["$current_host"]=${BASH_REMATCH[1]}
+          state='entry-close'
+        else
+          die "malformed registry at line $line_number: expected system = \"x86_64-linux\";"
+        fi
+        ;;
+      entry-close)
+        [[ $line == '  };' ]] ||
+          die "malformed registry at line $line_number: expected entry close"
+        state='entry'
+        ;;
+      done)
+        die "malformed registry at line $line_number: content follows final }"
+        ;;
+    esac
+  done < "$registry_file"
+
+  [[ $state == 'done' ]] || die 'malformed registry: incomplete registry structure'
+}
+
+host=''
+user=''
+system=''
+
+while (( $# > 0 )); do
+  case $1 in
+    --host | --user | --system)
+      (( $# >= 2 )) || die "missing value for $1"
+      case $1 in
+        --host) host=$2 ;;
+        --user) user=$2 ;;
+        --system) system=$2 ;;
+      esac
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ -n $host ]] || die '--host is required'
+[[ -n $user ]] || die '--user is required'
+[[ -n $system ]] || die '--system is required'
+
+[[ $host =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
+  die 'host must match [a-z0-9][a-z0-9-]*'
+[[ $user =~ ^[a-z_][a-z0-9_-]*$ ]] ||
+  die 'user must be a conservative Linux username'
+[[ $system == 'x86_64-linux' ]] ||
+  die 'system must be x86_64-linux'
+
+script_directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+repository_root=$(cd -- "$script_directory/.." && pwd -P)
+registry="$repository_root/hosts/registry.nix"
+
+[[ -f $registry ]] || die "registry is not a regular file: $registry"
+command -v nix-instantiate >/dev/null 2>&1 ||
+  die 'nix-instantiate is required to validate registry syntax'
+
+nix-instantiate --parse "$registry" >/dev/null ||
+  die 'registry is not valid Nix syntax'
+validate_registry_shape "$registry"
+
+if [[ -v 'registry_users[$host]' ]]; then
+  if [[ ${registry_users[$host]} == "$user" && ${registry_systems[$host]} == "$system" ]]; then
+    printf 'register-host: %s is already registered with the requested values\n' "$host"
+    exit 0
+  fi
+  die "host $host is already registered with user=${registry_users[$host]} system=${registry_systems[$host]}"
+fi
+
+original_registry=$(cat -- "$registry"; printf '\001')
+original_registry=${original_registry%$'\001'}
+registry_without_close=${original_registry%$'}\n'}
+[[ $registry_without_close != "$original_registry" ]] ||
+  die 'malformed registry: expected final } followed by a newline'
+
+temporary_file=''
+cleanup() {
+  if [[ -n $temporary_file ]]; then
+    rm -f -- "$temporary_file"
+  fi
+}
+trap cleanup EXIT
+
+temporary_file=$(mktemp "$(dirname -- "$registry")/.registry.nix.tmp.XXXXXX")
+
+{
+  printf '%s' "$registry_without_close"
+  if [[ $registry_without_close != *$'\n\n' ]]; then
+    printf '\n'
+  fi
+  printf '  %s = {\n' "$host"
+  printf '    user = "%s";\n' "$user"
+  printf '    system = "%s";\n' "$system"
+  printf '  };\n'
+  printf '}\n'
+} > "$temporary_file"
+
+chmod --reference="$registry" "$temporary_file"
+nix-instantiate --parse "$temporary_file" >/dev/null ||
+  die 'generated registry is not valid Nix syntax'
+validate_registry_shape "$temporary_file"
+
+current_registry=$(cat -- "$registry"; printf '\001')
+current_registry=${current_registry%$'\001'}
+[[ $current_registry == "$original_registry" ]] ||
+  die 'registry changed while the update was being prepared'
+
+mv -- "$temporary_file" "$registry"
+temporary_file=''
+printf 'register-host: registered %s for %s on %s\n' "$host" "$user" "$system"
