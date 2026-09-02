@@ -1,5 +1,7 @@
 # NixOS configuration
 
+[한국어](README.ko.md)
+
 This repository manages a declarative NixOS system, including per-host configuration, NixOS user accounts, Home Manager profiles, editable application dotfiles, and a bootstrap workflow for adopting additional machines.
 
 The currently supported platform is **NixOS on x86_64-linux**. The bootstrap does not support ARM or other architectures, and nix-darwin/macOS is not currently supported.
