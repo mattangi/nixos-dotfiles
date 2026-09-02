@@ -633,3 +633,12 @@ sudo nixos-rebuild switch --flake .#<host>
 ### `~/.config/walls`가 Home Manager와 충돌함
 
 Home Manager는 이 path가 `~/nixos-dotfiles/config/walls`를 가리키는 out-of-store link가 될 것으로 예상합니다. 첫 activation 전에 기존 일반 directory의 file을 확인하고 보존하십시오. Bootstrap은 destination 자체를 절대 수정하지 않습니다.
+
+## 참고
+
+이 설정은 다음 저장소들의 NixOS 구성 방식과 시스템 구조를 참고하여 작성했습니다.
+
+- https://github.com/dustinlyons
+- https://github.com/tonybanters
+
+현재 저장소의 최종 구조와 구현은 제 환경과 작업 방식에 맞게 수정하고 재구성한 것입니다.
