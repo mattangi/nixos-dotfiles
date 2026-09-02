@@ -15,7 +15,11 @@ The currently supported platform is **NixOS on x86_64-linux**. The bootstrap doe
 ├── config/
 ├── hosts/
 │   ├── registry.nix
-│   └── thinkpad/
+│   ├── thinkpad/
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── machine.nix
+│   └── razer/
 │       ├── default.nix
 │       ├── hardware-configuration.nix
 │       └── machine.nix
@@ -26,7 +30,10 @@ The currently supported platform is **NixOS on x86_64-linux**. The bootstrap doe
 │   ├── host/
 │   └── user/
 ├── users/
-│   └── mattangi/
+│   ├── mattangi/
+│   │   ├── default.nix
+│   │   └── home.nix
+│   └── kyoon/
 │       ├── default.nix
 │       └── home.nix
 ├── flake.nix
@@ -36,14 +43,21 @@ The currently supported platform is **NixOS on x86_64-linux**. The bootstrap doe
 The main layers have deliberately separate responsibilities:
 
 - `hosts/<host>/default.nix` assembles one host. It selects imports and contains instantiated host policy such as the bootloader, hostname, timezone, locale, `system.stateVersion`, and selected NixOS user.
-- `hosts/<host>/machine.nix` contains hand-curated model- or machine-specific policy. The current ThinkPad module is specifically for a Lenovo ThinkPad T14s AMD Gen 4 and includes its `nixos-hardware` module and AMD diagnostic tools. Newly bootstrapped hosts start with a minimal empty machine module.
-- `hosts/<host>/hardware-configuration.nix` is generated from the machine. It contains detected filesystems, storage, kernel modules, and similar installation-specific hardware state. Keep it separate from curated `machine.nix` policy rather than mixing the two responsibilities.
+- `hosts/<host>/machine.nix` contains intentionally hand-curated model- or machine-specific policy. Newly bootstrapped hosts start with a minimal empty module because bootstrap does not guess this policy.
+- `hosts/<host>/hardware-configuration.nix` is generated from the actual current machine. It contains detected filesystems, storage, kernel modules, and similar installation-specific state. Keep it separate from curated `machine.nix` policy rather than mixing the two responsibilities.
 - `hosts/registry.nix` explicitly associates each host with its primary user and Nix system. Only hosts listed in this registry become `nixosConfigurations.<host>` outputs; host directories are not discovered automatically.
 - `modules/nixos/` contains reusable NixOS policy and feature modules, including Nix settings, networking, audio, input methods, fonts, laptop infrastructure, security, desktop/session infrastructure, gaming/graphics, and baseline system packages.
 - `users/<user>/default.nix` defines the NixOS account: username, normal-user status, login shell, description, and system groups.
 - `users/<user>/home.nix` assembles the user's Home Manager profile, identity, applications, and dotfile mappings.
 - `modules/home/` contains reusable Home Manager package policy for user applications and persistent editor/development dependencies.
 - `config/` contains live, editable application configuration.
+
+The currently tracked physical hosts are:
+
+- `thinkpad`: Lenovo ThinkPad T14s AMD Gen 4, with primary user `mattangi`.
+- `razer`: Razer Blade 15 Advanced, model RZ09-0301, with primary user `kyoon`.
+
+These relationships come from `hosts/registry.nix`. Detailed hardware policy belongs in each host's `machine.nix`, not in this inventory.
 
 ### Editable dotfiles
 
@@ -79,31 +93,43 @@ ${config.home.homeDirectory}/nixos-dotfiles/config
 
 ## Adopting a NixOS machine
 
-Bootstrap adopts an **already running NixOS machine** into this repository. It does not install NixOS from bare metal, partition disks, or replace the current system automatically.
+Bootstrap is an adoption workflow for an **already installed and currently booted NixOS system**. It creates and validates repository configuration for that system. It is not a bare-metal installer: it does not partition disks, install NixOS, or replace the running configuration automatically.
 
 ### Prerequisites
 
-Before running bootstrap, the machine should:
+Immediately before bootstrap, the machine must have:
 
-- Already run NixOS.
-- Use an x86_64 processor.
-- Have enough network access to clone the repository and evaluate its flake inputs.
-- Be operated as the intended normal user.
-- Have the repository cloned to `/home/<user>/nixos-dotfiles`.
+- NixOS installed and currently running.
+- An `x86_64-linux` system.
+- A normal, non-root user account with `sudo` access for the later manual activation.
+- Working network access for cloning the repository and evaluating flake inputs.
+- Standard NixOS tools, including `nix`, `nixos-generate-config`, and `nixos-rebuild`.
+- `git`, which is required to clone this repository.
+- `pciutils`, which provides `lspci` for the bootstrap hardware report.
+
+`vim` or another text editor is strongly recommended for reviewing and curating the generated `hosts/<host>/machine.nix` before first activation. `wget` and `unzip` are useful convenience or recovery tools, but `bootstrap/apply` does not depend on them.
 
 Do not run bootstrap as root. It intentionally refuses root execution and never invokes `sudo` internally.
 
+The final repository configuration enables flakes declaratively. Flakes and `nix-command` do not need to be globally enabled before bootstrap; the script supplies the temporary experimental-feature setting needed for its own initial validation.
+
 ### Clone the repository
 
-Use the required directory name:
+On a minimal fresh NixOS installation, obtain the bootstrap tools temporarily without first editing `/etc/nixos/configuration.nix`:
 
 ```bash
-cd "$HOME"
-git clone <your-repository-url> nixos-dotfiles
-cd nixos-dotfiles
+nix-shell -p git pciutils vim
 ```
 
-Replace `<your-repository-url>` with the actual remote URL.
+From that package shell, clone to the required location:
+
+```bash
+cd ~
+git clone https://github.com/mattangi/nixos-dotfiles.git
+cd ~/nixos-dotfiles
+```
+
+After the first successful activation, the repository installs its normal baseline tools declaratively through `modules/nixos/base-packages.nix`.
 
 ### Run bootstrap
 
@@ -131,11 +157,11 @@ To adopt another host for an existing repository user:
 
 ```bash
 ./bootstrap/apply \
-  --host desktop \
-  --user mattangi
+  --host razer \
+  --user kyoon
 ```
 
-If both `users/mattangi/default.nix` and `users/mattangi/home.nix` already exist, they are reused unchanged. Name and email are neither required nor accepted when reusing an existing user.
+This is the command used for the successfully tested Razer adoption. If both files for an existing user are complete, as they are under `users/kyoon/`, bootstrap reuses them unchanged. Name and email are neither required nor accepted when reusing an existing user.
 
 To instantiate a new user:
 
@@ -192,6 +218,8 @@ For non-interactive use, add:
 
 **Bootstrap does not activate the system.**
 
+The Razer host has been tested on physical hardware through repository cloning, bootstrap generation, hardware generation, `machine.nix` preparation, flake validation, build, `nixos-rebuild test`, and `nixos-rebuild switch`.
+
 ## What bootstrap does not do
 
 Bootstrap does not:
@@ -204,6 +232,7 @@ Bootstrap does not:
 - Automatically select a `nixos-hardware` machine profile.
 - Automatically configure CPU/GPU tuning or machine-specific quirks.
 - Register a YubiKey or modify PAM/authentication state.
+- Invoke an external AI service.
 - Bootstrap secrets, keys, passwords, or tokens.
 - Stage, commit, or push Git changes.
 - Create or switch Git branches.
@@ -222,8 +251,8 @@ hosts/desktop/
 ```
 
 - `default.nix` assembles the shared modules, selected user, hostname, and project defaults.
-- `hardware-configuration.nix` is the generated hardware scan for this installation.
-- `machine.nix` starts as an empty curated machine module for later review.
+- `hardware-configuration.nix` is generated from the current installation by `nixos-generate-config --show-hardware-config`. It represents detected installation and hardware state; do not put curated model tuning in it.
+- `machine.nix` starts as a minimal empty module and is the place for deliberate model policy.
 
 Bootstrap also adds an explicit registry entry equivalent to:
 
@@ -236,19 +265,44 @@ desktop = {
 
 `bootstrap/register-host` is the controlled writer for that registry entry.
 
-## Review machine configuration before activation
+## Preparing `machine.nix` before the first activation
 
-New `hosts/<host>/machine.nix` files are intentionally minimal. Bootstrap does not guess hardware policy from DMI data.
+After:
 
-Before activation, review at least:
+```bash
+./bootstrap/apply --host <host> --user <user>
+```
+
+bootstrap intentionally creates a minimal `hosts/<host>/machine.nix`. It must not guess GPU drivers, hardware profiles, PRIME topology, CPU tuning, or model-specific quirks.
+
+Before the first `nixos-rebuild switch`, review:
 
 ```text
 .bootstrap/<host>/hardware-report.txt
 hosts/<host>/hardware-configuration.nix
-hosts/<host>/machine.nix
 ```
 
-Use the report to research and add model-specific settings deliberately. Do not blindly copy `hosts/thinkpad/machine.nix` to another machine: it is specific to the **Lenovo ThinkPad T14s AMD Gen 4**.
+You may also inspect the live hardware directly:
+
+```bash
+lspci -nn
+lscpu
+```
+
+Use this information to decide which of these cases applies:
+
+1. **A known-good machine configuration already exists.** Replace the bootstrap-created empty `machine.nix` with that curated file before the first build. Do not blindly copy policy from a different model.
+2. **The machine is new or unknown.** Research appropriate settings from the generated report, generated hardware configuration, and live hardware information. `machine.nix` may contain verified `nixos-hardware` imports, CPU-specific configuration, GPU driver policy, NVIDIA PRIME configuration, Intel or AMD graphics policy, power or thermal settings, model-specific kernel parameters, firmware or device quirks, and host-specific diagnostic packages. ChatGPT or Codex can help analyze the hardware information and propose a module, but the user must review the result; bootstrap never invokes an external AI service automatically.
+3. **No machine-specific configuration is needed.** The minimal generated `machine.nix` may remain empty.
+
+Keep the responsibilities separate:
+
+```text
+hardware-configuration.nix = generated detected installation/hardware state
+machine.nix                = intentionally maintained model-specific policy
+```
+
+Do not merge curated machine policy into `hardware-configuration.nix`. As a real example, the Razer host's Intel/NVIDIA PRIME policy was prepared in `hosts/razer/machine.nix` before its first activation.
 
 ## Local bootstrap metadata
 
@@ -345,16 +399,18 @@ Before activation:
 
 > **Warning:** The following command is the point where the running system is actually changed. Bootstrap never runs it.
 
-From the repository root, replace `<host>` and activate manually:
+Immediately after bootstrap, the generated host and possibly user files are untracked. From the repository root, use the explicit path flake so those working-tree files are included, and progress through build, test activation, and persistent activation deliberately:
 
 ```bash
-sudo nixos-rebuild switch \
-  --flake 'path:.#<host>' \
-  --option experimental-features "nix-command flakes" \
-  --no-write-lock-file
+sudo nixos-rebuild build --flake 'path:.#<host>' \
+  --option experimental-features "nix-command flakes"
+sudo nixos-rebuild test --flake 'path:.#<host>' \
+  --option experimental-features "nix-command flakes"
+sudo nixos-rebuild switch --flake 'path:.#<host>' \
+  --option experimental-features "nix-command flakes"
 ```
 
-This does not reboot automatically, but it builds and activates the selected NixOS configuration and updates the system generation.
+`build` creates the system without activating it. `test` activates it without making it the boot default. `switch` activates it and updates the default system generation. None of these commands reboots automatically.
 
 After the first successful activation, this repository declaratively enables:
 
@@ -366,6 +422,54 @@ nix.settings.experimental-features = [
 ```
 
 Subsequent flake commands should therefore no longer need the temporary feature option. Do not add imperative settings to `/etc/nix/nix.conf`.
+
+After the first successful activation, perform the YubiKey enrollment described under [Authentication notes](#authentication-notes).
+
+The tested adoption sequence is:
+
+```text
+bootstrap/apply
+→ inspect hardware report
+→ prepare/review machine.nix
+→ nixos-rebuild build
+→ nixos-rebuild test
+→ nixos-rebuild switch
+→ u2f-register
+→ test sudo and greeter YubiKey authentication
+```
+
+## Normal update and rebuild workflow
+
+On an already configured machine, review local work before pulling changes made elsewhere:
+
+```bash
+cd ~/nixos-dotfiles
+git status
+git pull --ff-only origin main
+```
+
+Local uncommitted changes may overlap incoming work, so inspect them before pulling.
+
+To update pinned flake inputs and validate the result:
+
+```bash
+nix flake update
+nix flake check
+```
+
+`nix flake update` changes `flake.lock`. Review that change and commit it intentionally only after successful testing.
+
+Activate the configuration for the current host:
+
+```bash
+sudo nixos-rebuild switch --flake .#thinkpad
+```
+
+or:
+
+```bash
+sudo nixos-rebuild switch --flake .#razer
+```
 
 ## Git workflow
 
@@ -435,6 +539,22 @@ Package ownership follows configuration scope rather than one mixed package list
 
 The current system intentionally combines YubiKey/PAM U2F authentication, `hyprpolkitagent`, and Noctalia Greeter.
 
+After the first successful NixOS activation, the system provides `pam_u2f`, its interactive `pamu2fcfg` enrollment utility, and the system-wide helper `u2f-register`. Enrollment is intentionally not run by bootstrap, Home Manager, `nixos-rebuild`, login, or a systemd service.
+
+Run the helper once as the normal user in an interactive terminal:
+
+```bash
+u2f-register
+```
+
+It may request the YubiKey PIN and/or a physical touch, then creates the per-user mapping at:
+
+```text
+~/.config/Yubico/u2f_keys
+```
+
+Do not copy this mapping from another machine. PAM U2F registration uses the current host's relying-party origin, `pam://<hostname>`, so each machine must enroll independently. The ThinkPad and Razer therefore need separate `u2f-register` runs and must not share a `u2f_keys` file.
+
 The Noctalia Greeter setting:
 
 ```nix
@@ -481,6 +601,30 @@ Bootstrap checks effective write/search access for every planned destination bef
 ### Flake validation fails after publication
 
 Once publication begins, bootstrap intentionally avoids complex automatic rollback. New host/user/metadata files and the registry entry remain unstaged for inspection and correction. Existing hosts and users are not overwritten.
+
+### Generated host is not tracked by Git
+
+Immediately after bootstrap, paths such as `hosts/<new-host>/` and `users/<new-user>/` may still be untracked. A command such as:
+
+```bash
+sudo nixos-rebuild switch --flake .#<host>
+```
+
+can then fail with an error similar to `Path 'hosts/<host>' ... is not tracked by Git`. When a flake is interpreted as a Git source, untracked files are not included in that source.
+
+The files do not need to be committed before initial testing. Use an explicit path flake to include the whole working tree:
+
+```bash
+sudo nixos-rebuild build --flake path:.#<host>
+sudo nixos-rebuild test --flake path:.#<host>
+sudo nixos-rebuild switch --flake path:.#<host>
+```
+
+After the generated host and user files are tracked by Git, normal commands may use:
+
+```bash
+sudo nixos-rebuild switch --flake .#<host>
+```
 
 ### `~/.config/walls` conflicts with Home Manager
 

@@ -3,3 +3,4 @@ AGENTS.md
 config/walls/
 result
 result-*
+/config/fcitx/dbus/
