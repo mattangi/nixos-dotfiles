@@ -37,33 +37,40 @@
       superfile,
       ...
     }@inputs:
+    let
+      hosts = import ./hosts/registry.nix;
+
+      mkHost =
+        hostName:
+        { user, system }:
+        nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = { inherit inputs; };
+          modules = [
+            ./hosts/${hostName}
+            inputs.noctalia.nixosModules.default
+            inputs.noctalia-greeter.nixosModules.default
+            home-manager.nixosModules.home-manager
+            ({ pkgs, ... }: {
+              home-manager = {
+                useGlobalPkgs = true;
+                useUserPackages = true;
+                extraSpecialArgs = {
+                  superfilePackage = inputs.superfile.packages.${system}.default;
+                };
+                users.${user} = {
+                  imports = [
+                    inputs.noctalia.homeModules.default
+                    ./users/${user}/home.nix
+                  ];
+                };
+                backupFileExtension = "backup";
+              };
+            })
+          ];
+        };
+    in
     {
-      nixosConfigurations.thinkpad = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit inputs; };
-        modules = [
-          ./hosts/thinkpad
-          inputs.noctalia.nixosModules.default
-          inputs.noctalia-greeter.nixosModules.default
-          home-manager.nixosModules.home-manager
-          ({ pkgs, ... }: {
-            home-manager = {
-              useGlobalPkgs = true;
-              useUserPackages = true;
-              extraSpecialArgs = {
-                superfilePackage =
-                  inputs.superfile.packages.${pkgs.stdenv.hostPlatform.system}.default;
-              };
-              users.mattangi = {
-                imports = [
-                  inputs.noctalia.homeModules.default
-                  ./users/mattangi/home.nix
-                ];
-              };
-              backupFileExtension = "backup";
-            };
-          })
-        ];
-      };
+      nixosConfigurations = nixpkgs.lib.mapAttrs mkHost hosts;
     };
 }
