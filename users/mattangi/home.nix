@@ -26,7 +26,7 @@ let
     qt5ct = "qt5ct"; # linux specific
     qt6ct = "qt6ct"; # linux specific
     superfile = "superfile"; # cross platform
-    #  walls = "walls"; # cross platform.  A collection of wallpapers
+    walls = "walls";
   };
 
 in

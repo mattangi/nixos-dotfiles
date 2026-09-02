@@ -622,7 +622,7 @@ wallpaper_scheme = "m3-content"
     enable_community_templates = true
 
 [wallpaper]
-directory = "/home/mattangi/.config/walls"
+directory = "~/.config/walls"
 directory_dark = ""
 directory_light = ""
 edge_smoothness = 0.30000001192092896
