@@ -71,6 +71,32 @@ Home Manager intentionally exposes application configuration with `config.lib.fi
 
 It is not copied into immutable Nix-store-managed files. Applications and plugin managers can therefore update their configuration while the repository remains the source of truth.
 
+### Per-device Hyprland input settings
+
+Hyprland's shared input settings can be overridden for a particular physical device in `config/hypr/modules/input.lua`. Find the device name with:
+
+```bash
+hyprctl devices
+```
+
+Then add a device-specific Lua block using that name, for example:
+
+```lua
+hl.device({
+    name = "example-mouse-name",
+    natural_scroll = true,
+})
+```
+
+This allows different mice or pointing devices to use different behavior while retaining the shared global input settings. The currently tested use case is `natural_scroll`: `true` enables natural/reversed scrolling for that device, while `false` uses the normal non-natural scroll direction.
+
+After editing the configuration, normally reload Hyprland and check the device information again with:
+
+```bash
+hyprctl reload
+hyprctl devices
+```
+
 ## Required repository location
 
 The repository must be located at:
@@ -472,6 +498,12 @@ or:
 ```bash
 sudo nixos-rebuild switch --flake .#razer
 ```
+
+## Automatic Nix garbage collection
+
+The shared NixOS policy in `modules/nixos/nix.nix` runs Nix garbage collection automatically every day. Nix profile generations older than 7 days are eligible for deletion, after which store paths that are no longer referenced may be reclaimed. Generations removed by this policy are no longer available for rollback.
+
+This is age-based retention, not a policy that retains exactly seven generations. It applies to every currently configured NixOS host that imports the shared Nix module.
 
 ## Git workflow
 

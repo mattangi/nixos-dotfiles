@@ -73,6 +73,32 @@ Home Manager는 의도적으로 `config.lib.file.mkOutOfStoreSymlink`를 사용�
 
 설정은 변경할 수 없는 Nix store 관리 file로 복사되지 않습니다. 따라서 repository를 source of truth로 유지하면서 application과 plugin manager가 설정을 업데이트할 수 있습니다.
 
+### Device별 Hyprland input 설정
+
+Hyprland의 shared input 설정은 `config/hypr/modules/input.lua`에서 특정 physical device별로 override할 수 있습니다. 다음 명령으로 device name을 확인하십시오.
+
+```bash
+hyprctl devices
+```
+
+그런 다음 해당 name을 사용해 다음과 같은 device별 Lua block을 추가합니다.
+
+```lua
+hl.device({
+    name = "example-mouse-name",
+    natural_scroll = true,
+})
+```
+
+이를 통해 shared global input 설정을 유지하면서 mouse 또는 pointing device마다 서로 다른 동작을 사용할 수 있습니다. 현재 검증된 use case는 `natural_scroll`입니다. `true`는 해당 device에서 natural/reversed scrolling을 활성화하고, `false`는 일반적인 non-natural scroll direction을 사용합니다.
+
+설정을 편집한 후에는 일반적으로 다음 명령으로 Hyprland를 reload하고 device 정보를 다시 확인할 수 있습니다.
+
+```bash
+hyprctl reload
+hyprctl devices
+```
+
 ## 필수 repository 위치
 
 repository는 반드시 다음 위치에 있어야 합니다.
@@ -474,6 +500,12 @@ sudo nixos-rebuild switch --flake .#thinkpad
 ```bash
 sudo nixos-rebuild switch --flake .#razer
 ```
+
+## 자동 Nix garbage collection
+
+`modules/nixos/nix.nix`의 shared NixOS policy는 매일 Nix garbage collection을 자동 실행합니다. 7일보다 오래된 Nix profile generation은 삭제 대상이 되며, 이후 더 이상 참조되지 않는 store path를 회수할 수 있습니다. 이 policy로 삭제된 generation은 더 이상 rollback에 사용할 수 없습니다.
+
+이는 정확히 7개의 generation을 유지하는 policy가 아니라 age-based retention입니다. Shared Nix module을 import하는 현재 구성된 모든 NixOS host에 적용됩니다.
 
 ## Git workflow
 
