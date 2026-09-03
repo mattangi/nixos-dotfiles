@@ -18,6 +18,11 @@ hl.config({
     },
 })
 
+hl.device({
+    name = "mx-anywhere-2s-mouse",
+    natural_scroll = true,
+})
+
 hl.config({
     cursor = {
         inactive_timeout = 30,
