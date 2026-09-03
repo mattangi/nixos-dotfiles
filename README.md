@@ -501,9 +501,16 @@ sudo nixos-rebuild switch --flake .#razer
 
 ## Automatic Nix garbage collection
 
-The shared NixOS policy in `modules/nixos/nix.nix` runs Nix garbage collection automatically every day. Nix profile generations older than 7 days are eligible for deletion, after which store paths that are no longer referenced may be reclaimed. Generations removed by this policy are no longer available for rollback.
+The shared NixOS policy in `modules/nixos/nix.nix` applies to hosts that import the module, including the current ThinkPad and Razer configurations. It runs this sequence against the NixOS system profile:
 
-This is age-based retention, not a policy that retains exactly seven generations. It applies to every currently configured NixOS host that imports the shared Nix module.
+```bash
+nix-env --profile /nix/var/nix/profiles/system --delete-generations +5
+nix-store --gc
+```
+
+This relies on Nix's built-in `+5` semantics rather than custom age calculations. Nix keeps the current system generation and the four generations immediately preceding it. If the current generation was selected by rolling back, Nix also preserves generations newer than it, so this policy does not always retain exactly five generations. Removed generations are no longer available as NixOS rollback generations. After profile generations are pruned, `nix-store --gc` reclaims store paths that are no longer referenced by any GC root.
+
+`nix-generation-cleanup.timer` invokes `nix-generation-cleanup.service` daily. The timer uses `Persistent=true`, so a run missed while the machine is powered off can occur after the machine becomes available again. Cleanup is independent of `nixos-rebuild build`, `nixos-rebuild test`, and `nixos-rebuild switch`: those commands create or apply generations, but do not directly trigger this cleanup policy.
 
 ## Git workflow
 

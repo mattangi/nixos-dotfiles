@@ -503,9 +503,16 @@ sudo nixos-rebuild switch --flake .#razer
 
 ## 자동 Nix garbage collection
 
-`modules/nixos/nix.nix`의 shared NixOS policy는 매일 Nix garbage collection을 자동 실행합니다. 7일보다 오래된 Nix profile generation은 삭제 대상이 되며, 이후 더 이상 참조되지 않는 store path를 회수할 수 있습니다. 이 policy로 삭제된 generation은 더 이상 rollback에 사용할 수 없습니다.
+`modules/nixos/nix.nix`의 shared NixOS policy는 이 module을 import하는 host에 적용되며, 현재 ThinkPad와 Razer configuration도 포함됩니다. NixOS system profile을 대상으로 다음 순서를 실행합니다.
 
-이는 정확히 7개의 generation을 유지하는 policy가 아니라 age-based retention입니다. Shared Nix module을 import하는 현재 구성된 모든 NixOS host에 적용됩니다.
+```bash
+nix-env --profile /nix/var/nix/profiles/system --delete-generations +5
+nix-store --gc
+```
+
+이 policy는 custom age calculation 대신 Nix의 built-in `+5` semantics를 사용합니다. Nix는 현재 system generation과 그 직전 네 generation을 유지합니다. Rollback으로 이전 generation을 현재 generation으로 선택한 경우에는 그보다 새로운 generation도 보존하므로, 항상 정확히 다섯 generation만 유지하는 policy는 아닙니다. 삭제된 generation은 더 이상 NixOS rollback generation으로 사용할 수 없습니다. Profile generation을 정리한 뒤 `nix-store --gc`는 어떤 GC root에서도 더 이상 참조하지 않는 store path를 회수합니다.
+
+`nix-generation-cleanup.timer`는 매일 `nix-generation-cleanup.service`를 실행합니다. Timer는 `Persistent=true`를 사용하므로 machine이 꺼져 있어 놓친 실행은 machine을 다시 사용할 수 있게 된 후 실행될 수 있습니다. Cleanup scheduling은 `nixos-rebuild build`, `nixos-rebuild test`, `nixos-rebuild switch`와 독립적입니다. 이 명령들은 generation을 생성하거나 적용하지만 이 cleanup policy를 직접 실행하지는 않습니다.
 
 ## Git workflow
 
